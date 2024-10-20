@@ -16,7 +16,7 @@ struct Wolfpack_CommsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            MainView()
+            LoginView()
         }
     }
 }

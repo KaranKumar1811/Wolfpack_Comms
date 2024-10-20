@@ -1,75 +1,88 @@
-import SwiftUI
+import Firebase
 import FirebaseAuth
+import SwiftUICore
+import Foundation
+import SwiftUI
 
 struct LoginView: View {
-    @State private var email = ""
-    @State private var password = ""
-    @State private var showError = false
-    @State private var errorMessage = ""
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var errorMessage: String = ""
 
     var body: some View {
         NavigationView {
             ZStack {
-                // Background Image
-                Image("LoginBackground")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 50, height: 50) // Reduced size
-                    .padding(.bottom, 20) // Adjusted padding
+                // Background color or gradient
+                LinearGradient(gradient: Gradient(colors: [Color.blue.opacity(0.5), Color.black.opacity(0.8)]), startPoint: .top, endPoint: .bottom)
                     .edgesIgnoringSafeArea(.all)
 
                 VStack(spacing: 20) {
-                    Spacer().frame(height: 60) // Adjust as needed
-
-                    // Logo or App Name
-                    Text("Wolfpack_Comms")
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.bottom, 20)
-
-                    // Or if using an image:
-                    /*
-                    Image("AppLogo")
+                    // Company Logo
+                    Image("wolfpackLogo")
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 50, height: 50)
+                        .frame(width: 200, height: 200)
                         .padding(.bottom, 20)
-                    */
 
-                    // Input Fields
-                    CustomTextField(placeholder: "Email", text: $email, isSecure: false)
-                    CustomTextField(placeholder: "Password", text: $password, isSecure: true)
-
-                    // Login Button
-                    Button(action: login) {
-                        Text("Login")
-                            .foregroundColor(.white)
-                            .frame(maxWidth: .infinity)
+                    // Login Form Container
+                    VStack(spacing: 20) {
+                        TextField("Email", text: $email)
                             .padding()
-                            .background(Color.blue.opacity(0.7))
+                            .background(Color.white.opacity(0.9))
                             .cornerRadius(10)
-                    }
-                    .padding(.top, 10)
+                            .keyboardType(.emailAddress)
+                            .autocapitalization(.none)
 
-                    // Sign Up Link
-                    NavigationLink(destination: SignupView()) {
-                        Text("Don't have an account? Sign Up")
-                            .foregroundColor(.white)
+                        SecureField("Password", text: $password)
+                            .padding()
+                            .background(Color.white.opacity(0.9))
+                            .cornerRadius(10)
+
+                        Button(action: {
+                            login()
+                        }) {
+                            Text("Sign In")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(LinearGradient(gradient: Gradient(colors: [Color.blue, Color.blue.opacity(0.8)]), startPoint: .leading, endPoint: .trailing))
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                                .shadow(color: Color.blue.opacity(0.4), radius: 5, x: 0, y: 5)
+                        }
+                        .padding(.top, 10)
+
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .foregroundColor(.red)
+                                .padding(.top, 10)
+                        }
                     }
-                    .padding(.top, 10)
+                    .padding()
+                    .background(Color.white.opacity(0.85)) // Container to improve contrast
+                    .cornerRadius(15)
+                    .shadow(radius: 10)
+                    .padding(.horizontal, 32)
 
                     Spacer()
                 }
-                .padding(.horizontal, 30)
+                .padding()
             }
-            .alert(isPresented: $showError) {
-                Alert(title: Text("Login Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
-            }
+        }
+        .onTapGesture {
+            // Dismiss the keyboard when tapping outside
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
     }
 
-    func login() {
-        // Your login function
+    private func login() {
+        Auth.auth().signIn(withEmail: email, password: password) { result, error in
+            if let error = error {
+                self.errorMessage = error.localizedDescription
+            } else {
+                // Handle successful login (e.g., navigate to main view)
+                print("Login successful")
+            }
+        }
     }
 }
 
