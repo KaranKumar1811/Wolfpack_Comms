@@ -6,6 +6,7 @@ struct MainView: View {
     @State private var userRole = ""
     @State private var showError = false
     @State private var errorMessage = ""
+    @State private var isLoggedOut = false
 
     var body: some View {
         NavigationView {
@@ -39,6 +40,12 @@ struct MainView: View {
                 }
                 .padding(.horizontal, 30)
                 .padding(.top, 20)
+                .background(
+                    NavigationLink(destination: LoginView(), isActive: $isLoggedOut) {
+                        EmptyView()
+                    }
+                    .hidden()
+                )
 
                 Spacer()
             }
@@ -66,13 +73,13 @@ struct MainView: View {
     func logout() {
         do {
             try Auth.auth().signOut()
+            isLoggedOut = true
         } catch {
             errorMessage = error.localizedDescription
             showError = true
         }
     }
 }
-
 
 #Preview {
     MainView()

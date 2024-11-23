@@ -1,11 +1,7 @@
-//
-//  Wolfpack_CommsApp.swift
-//  Wolfpack_Comms
-//
-//  Created by Karan Kumar on 2024-10-18.
-//
 import SwiftUI
+import FirebaseCore
 import Firebase
+import FirebaseAuth
 
 @main
 struct Wolfpack_CommsApp: App {
@@ -16,8 +12,7 @@ struct Wolfpack_CommsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            LoginView()
+            SplashView() // Start with SplashView
         }
     }
 }
-

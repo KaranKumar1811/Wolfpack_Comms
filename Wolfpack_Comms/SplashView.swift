@@ -1,11 +1,19 @@
 import SwiftUI
+import Firebase
+import FirebaseAuth
 
 struct SplashView: View {
     @State private var isActive = false
+    @State private var isFirebaseConfigured = false
+    @State private var isLoggedIn: Bool = false
 
     var body: some View {
-        if isActive {
-            ContentView() // After splash, navigate to the main content
+        if isFirebaseConfigured {
+            if isLoggedIn {
+                GroupsListView() // Navigate to GroupsListView if user is logged in
+            } else {
+                LoginView() // Navigate to LoginView if user is not logged in
+            }
         } else {
             ZStack {
                 // Background color or gradient
@@ -27,13 +35,23 @@ struct SplashView: View {
                 }
             }
             .onAppear {
-                // Delay of 2 seconds before transitioning to the main content
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    withAnimation {
-                        self.isActive = true
-                    }
-                }
+                initializeFirebase()
             }
+        }
+    }
+
+    private func initializeFirebase() {
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure() // Initialize Firebase if not already configured
+        }
+        
+        // Delay a bit to simulate splash screen loading (or wait for Firebase to complete)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            // Check if a user is logged in after Firebase is configured
+            if let user = Auth.auth().currentUser {
+                isLoggedIn = true
+            }
+            isFirebaseConfigured = true
         }
     }
 }

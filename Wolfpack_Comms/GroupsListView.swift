@@ -37,6 +37,7 @@ struct GroupsListView: View {
                 }
             }
             .navigationBarTitle("Groups", displayMode: .inline)
+            .navigationBarItems(trailing: Button("Logout", action: logout)) // Added logout button in navigation bar
             .onAppear(perform: fetchGroups)
             .alert(isPresented: $showError) {
                 Alert(title: Text("Error"), message: Text(errorMessage), dismissButton: .default(Text("OK")))
@@ -56,16 +57,27 @@ struct GroupsListView: View {
                 self.showError = true
             } else {
                 if let snapshot = snapshot {
-                    self.groups = snapshot.documents.map { doc in
+                    self.groups = snapshot.documents.compactMap { doc in
                         let data = doc.data()
+                        guard let groupName = data["name"] as? String else { return nil }
                         let groupId = doc.documentID
-                        let groupName = data["name"] as? String ?? "Unknown Group"
                         let latestMessage = data["latestMessage"] as? String ?? "No messages yet"
                         let timestamp = (data["timestamp"] as? Timestamp)?.dateValue() ?? Date()
                         return Group(id: groupId, name: groupName, latestMessage: latestMessage, timestamp: timestamp)
                     }
                 }
             }
+        }
+    }
+    
+    func logout() {
+        do {
+            try Auth.auth().signOut()
+            // After signing out, reset the groups list to avoid showing data for logged-out users
+            self.groups = []
+        } catch {
+            self.errorMessage = "Error signing out: \(error.localizedDescription)"
+            self.showError = true
         }
     }
 }

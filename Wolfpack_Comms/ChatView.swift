@@ -1,118 +1,216 @@
 import SwiftUI
-import FirebaseFirestore
+import Firebase
 import FirebaseAuth
+import FirebaseFirestore
+import FirebaseStorage
 
 struct ChatView: View {
-    @State private var message: String = ""
-    @State private var messages: [Message] = []
-    @State private var currentUserID: String = ""
-    
-    let db = Firestore.firestore()
+    var group: Group
 
+    @State private var messageText = ""
+    @State private var messages: [Message] = []
+    @State private var selectedImage: UIImage?
+    @State private var isImagePickerPresented = false
+    
     var body: some View {
-        VStack {
-            ScrollViewReader { scrollView in
+        NavigationView {
+            VStack {
+                Text("Chatting in \(group.name)") // Display the group name for reference
+                    .font(.headline)
+                    .padding()
+
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 10) {
-                        ForEach(messages) { message in
-                            HStack {
-                                if message.senderID == currentUserID {
-                                    Spacer()
-                                    Text(message.text)
-                                        .padding()
-                                        .background(Color.blue.opacity(0.7))
-                                        .foregroundColor(.white)
-                                        .cornerRadius(10)
-                                        .frame(maxWidth: 250, alignment: .trailing)
-                                } else {
-                                    Text(message.text)
-                                        .padding()
-                                        .background(Color.gray.opacity(0.3))
-                                        .foregroundColor(.black)
-                                        .cornerRadius(10)
-                                        .frame(maxWidth: 250, alignment: .leading)
-                                    Spacer()
+                    ForEach(messages) { message in
+                        HStack {
+                            if message.isCurrentUser {
+                                Spacer()
+                            }
+                            VStack(alignment: .leading) {
+                                if let imageUrl = message.imageUrl, let url = URL(string: imageUrl) {
+                                    AsyncImage(url: url) { phase in
+                                        switch phase {
+                                        case .empty:
+                                            ProgressView()
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(maxWidth: 200)
+                                                .cornerRadius(10)
+                                        case .failure:
+                                            Image(systemName: "xmark.octagon")
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
+                                }
+                                Text(message.text)
+                                    .padding(10)
+                                    .background(message.isCurrentUser ? Color.blue : Color.gray)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(10)
+                            }
+                            if !message.isCurrentUser {
+                                Spacer()
+                            }
+                        }
+                        .padding(10)
+                    }
+                }
+                HStack {
+                    Button(action: {
+                        isImagePickerPresented = true
+                    }) {
+                        Image(systemName: "photo.on.rectangle.angled")
+                            .font(.system(size: 24))
+                            .padding(8)
+                            .background(Color.blue.opacity(0.5))
+                            .foregroundColor(.white)
+                            .clipShape(Circle())
+                    }
+                    .sheet(isPresented: $isImagePickerPresented) {
+                        ImagePicker(selectedImage: $selectedImage, onImagePicked: { image in
+                            uploadImage(image) { imageUrl in
+                                if let imageUrl = imageUrl {
+                                    sendMessage(text: "", imageUrl: imageUrl)
                                 }
                             }
-                            .padding(.horizontal)
+                        })
+                    }
+                    TextField("Enter message...", text: $messageText)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                    Button(action: {
+                        if !messageText.isEmpty || selectedImage != nil {
+                            sendMessage(text: messageText, imageUrl: nil)
                         }
+                    }) {
+                        Text("Send")
+                            .padding(10)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
                     }
                 }
-                .onChange(of: messages.count) { _ in
-                    if !messages.isEmpty {
-                        withAnimation {
-                            scrollView.scrollTo(messages.last?.id, anchor: .bottom)
-                        }
-                    }
-                }
+                .padding(10)
             }
-            .padding(.top)
-            
-            HStack {
-                TextField("Enter your message", text: $message)
-                    .padding()
-                    .background(Color(.systemGray6))
-                    .cornerRadius(10)
-
-                Button(action: sendMessage) {
-                    Image(systemName: "paperplane.fill")
-                        .resizable()
-                        .frame(width: 25, height: 25)
-                        .padding(10)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .clipShape(Circle())
-                }
+            .navigationBarTitle(group.name, displayMode: .inline)
+            .onAppear {
+                fetchMessages()
             }
-            .padding()
-        }
-        .onAppear(perform: setupChat)
-        .navigationTitle("Chat")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func setupChat() {
-        if let userID = Auth.auth().currentUser?.uid {
-            currentUserID = userID
-        }
-        fetchMessages()
-    }
-
-    private func sendMessage() {
-        guard !message.isEmpty, let userID = Auth.auth().currentUser?.uid else { return }
-        
-        let newMessage = Message(text: message, senderID: userID, timestamp: Date())
-        do {
-            try db.collection("messages").addDocument(from: newMessage)
-            message = ""
-        } catch let error {
-            print("Error sending message: \(error.localizedDescription)")
         }
     }
 
-    private func fetchMessages() {
-        db.collection("messages").order(by: "timestamp", descending: false).addSnapshotListener { snapshot, error in
+    func sendMessage(text: String, imageUrl: String?) {
+        guard let userId = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        let messageData: [String: Any] = [
+            "text": text,
+            "imageUrl": imageUrl ?? "",
+            "userId": userId,
+            "timestamp": Timestamp()
+        ]
+        db.collection("groups").document(group.id).collection("messages").addDocument(data: messageData) { error in
+            if let error = error {
+                print("Error sending message: \(error.localizedDescription)")
+            } else {
+                messageText = ""
+            }
+        }
+    }
+
+    func fetchMessages() {
+        let db = Firestore.firestore()
+        db.collection("groups").document(group.id).collection("messages").order(by: "timestamp", descending: false).addSnapshotListener { snapshot, error in
             if let error = error {
                 print("Error fetching messages: \(error.localizedDescription)")
                 return
             }
             guard let documents = snapshot?.documents else { return }
-            self.messages = documents.compactMap { document in
-                try? document.data(as: Message.self)
+            self.messages = documents.compactMap { document -> Message? in
+                let data = document.data()
+                let id = document.documentID
+                let text = data["text"] as? String ?? ""
+                let imageUrl = data["imageUrl"] as? String
+                let userId = data["userId"] as? String ?? ""
+                let isCurrentUser = userId == Auth.auth().currentUser?.uid
+                return Message(id: id, text: text, imageUrl: imageUrl, isCurrentUser: isCurrentUser)
+            }
+        }
+    }
+
+    func uploadImage(_ image: UIImage, completion: @escaping (String?) -> Void) {
+        let storage = Storage.storage()
+        let storageRef = storage.reference().child("images/\(UUID().uuidString).jpg")
+        guard let imageData = image.jpegData(compressionQuality: 0.8) else {
+            completion(nil)
+            return
+        }
+        
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        
+        storageRef.putData(imageData, metadata: metadata) { metadata, error in
+            if let error = error {
+                print("Error uploading image: \(error.localizedDescription)")
+                completion(nil)
+            } else {
+                storageRef.downloadURL { url, error in
+                    if let error = error {
+                        print("Error getting download URL: \(error.localizedDescription)")
+                        completion(nil)
+                    } else {
+                        completion(url?.absoluteString)
+                    }
+                }
             }
         }
     }
 }
 
-struct Message: Identifiable, Codable {
-    @DocumentID var id: String? = UUID().uuidString
-    var text: String
-    var senderID: String
-    var timestamp: Date
+struct Message: Identifiable {
+    let id: String
+    let text: String
+    let imageUrl: String?
+    let isCurrentUser: Bool
 }
 
-struct ChatView_Previews: PreviewProvider {
-    static var previews: some View {
-        ChatView()
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var selectedImage: UIImage?
+    var onImagePicked: (UIImage) -> Void
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        return picker
     }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator {
+        return Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+        let parent: ImagePicker
+        
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.selectedImage = image
+                parent.onImagePicked(image)
+            }
+            picker.dismiss(animated: true)
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            picker.dismiss(animated: true)
+        }
+    }
+}
+
+#Preview {
+    ChatView(group: Group(id: UUID().uuidString, name: "Sample Group", latestMessage: "Welcome!", timestamp: Date()))
 }
