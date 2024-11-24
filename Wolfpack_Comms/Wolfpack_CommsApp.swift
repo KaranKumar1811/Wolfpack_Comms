@@ -1,7 +1,5 @@
 import SwiftUI
-import FirebaseCore
 import Firebase
-import FirebaseAuth
 
 @main
 struct Wolfpack_CommsApp: App {
@@ -10,9 +8,17 @@ struct Wolfpack_CommsApp: App {
         FirebaseApp.configure()
     }
 
+    @StateObject private var appState = AppState() // Create an instance of AppState
+
     var body: some Scene {
         WindowGroup {
-            SplashView() // Start with SplashView
+            if appState.isLoggedIn {
+                GroupsListView()
+                    .environmentObject(appState) // Pass AppState to the environment
+            } else {
+                LoginView()
+                    .environmentObject(appState) // Pass AppState to the environment
+            }
         }
     }
 }
